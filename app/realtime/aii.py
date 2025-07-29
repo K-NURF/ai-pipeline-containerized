@@ -9,8 +9,8 @@ def load_model():
     """Load Whisper model"""
     try:
         import whisper
-        model = whisper.load_model("small")
-        print("✅ Loaded Whisper small model")
+        model = whisper.load_model("large-v3-turbo")
+        print("✅ Loaded Whisper openai/whisper-large-v3 model")
         return model, None, {}, {}
     except ImportError:
         return None, None, {}, {}
