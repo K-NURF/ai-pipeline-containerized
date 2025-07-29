@@ -1,43 +1,517 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Real-time Transcription - Header Fix</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPENCHS - Real-time Transcription</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
-        #transcription { 
-            border: 1px solid #ccc; 
-            padding: 10px; 
-            margin: 10px 0; 
-            height: 300px; 
-            overflow-y: scroll; 
-            background: #f9f9f9;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        #status { 
-            padding: 10px; 
-            margin: 10px 0; 
-            border-radius: 5px; 
-            background: #e7f3ff;
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #180900 0%, #2a1a0f 50%, #1a1a1a 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
         }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(255, 107, 53, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 140, 66, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(24, 9, 0, 0.3) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px 30px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
+            box-shadow: 
+                0 20px 40px rgba(24, 9, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.5), transparent);
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 50%, #ffb366 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .header .subtitle {
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: 0.3px;
+        }
+
+        .controls-section {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 35px;
+            margin-bottom: 30px;
+            box-shadow: 
+                0 15px 35px rgba(24, 9, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            position: relative;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+        }
+
+        button { 
+            padding: 18px 32px;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            color: #180900;
+            box-shadow: 
+                0 8px 25px rgba(255, 107, 53, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #startBtn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 
+                0 15px 35px rgba(255, 107, 53, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        #startBtn:active {
+            transform: translateY(-1px) scale(1.01);
+        }
+
+        #startBtn:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.4);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #stopBtn {
+            background: rgba(24, 9, 0, 0.8);
+            color: #ff6b35;
+            border: 2px solid rgba(255, 107, 53, 0.5);
+            box-shadow: 
+                0 8px 25px rgba(24, 9, 0, 0.4),
+                inset 0 1px 0 rgba(255, 107, 53, 0.1);
+        }
+
+        #stopBtn:hover {
+            transform: translateY(-3px) scale(1.02);
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            color: #180900;
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 
+                0 15px 35px rgba(255, 107, 53, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        #stopBtn:active {
+            transform: translateY(-1px) scale(1.01);
+        }
+
+        #stopBtn:disabled {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.1);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #micStatus {
+            background: rgba(255, 107, 53, 0.08);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 107, 53, 0.2);
+            padding: 18px 28px;
+            border-radius: 16px;
+            font-weight: 600;
+            text-align: center;
+            color: #ff6b35;
+            min-width: 220px;
+            box-shadow: 
+                0 8px 20px rgba(255, 107, 53, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        #status {
+            background: rgba(255, 107, 53, 0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 107, 53, 0.15);
+            padding: 22px 25px;
+            margin: 25px 0;
+            border-radius: 18px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-align: center;
+            box-shadow: 
+                0 10px 25px rgba(255, 107, 53, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .transcription-container {
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 
+                0 20px 40px rgba(24, 9, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .transcription-header {
+            background: rgba(255, 107, 53, 0.1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 25px;
+            color: #ff6b35;
+            font-weight: 700;
+            font-size: 1.3rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 107, 53, 0.15);
+            letter-spacing: 0.3px;
+        }
+
+        #transcription {
+            padding: 25px;
+            height: 450px;
+            overflow-y: auto;
+            background: rgba(24, 9, 0, 0.1);
+        }
+
+        #transcription::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #transcription::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        #transcription::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            border-radius: 10px;
+        }
+
+        #transcription::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #ff8c42 0%, #ffb366 100%);
+        }
+
         .transcription-item {
-            margin: 5px 0;
-            padding: 5px;
-            background: white;
-            border-radius: 3px;
+            margin: 18px 0;
+            padding: 22px 25px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 4px solid #ff6b35;
+            font-weight: 500;
+            line-height: 1.7;
+            animation: slideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 8px 20px rgba(24, 9, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .transcription-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 30px rgba(24, 9, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .transcription-item strong {
+            color: #ff6b35;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) translateY(0);
+            }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 107, 53, 0.2);
+            border-radius: 50%;
+            border-top-color: #ff6b35;
+            animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(1.05);
+            }
+        }
+
+        .recording-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: recordingPulse 1.5s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+        }
+
+        @keyframes recordingPulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+            }
+            50% {
+                opacity: 0.6;
+                transform: scale(1.3);
+                box-shadow: 0 0 20px rgba(255, 107, 53, 0.8);
+            }
+        }
+
+        .status-icon {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 30px;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 25px;
+            color: rgba(255, 107, 53, 0.3);
+            filter: drop-shadow(0 0 20px rgba(255, 107, 53, 0.2));
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        /* iOS-style focus states */
+        button:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.2);
+        }
+
+        /* Enhanced glassmorphism for mobile */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
+            .header {
+                padding: 30px 25px;
+                border-radius: 22px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .controls-section {
+                padding: 25px;
+                border-radius: 20px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            button {
+                width: 100%;
+                margin: 0;
+                padding: 16px 24px;
+                border-radius: 16px;
+            }
+            
+            #micStatus {
+                min-width: auto;
+                margin-top: 0;
+                border-radius: 14px;
+            }
+            
+            .transcription-container {
+                border-radius: 20px;
+            }
+            
+            #transcription {
+                height: 350px;
+                padding: 20px;
+            }
+            
+            .transcription-item {
+                padding: 18px 20px;
+                border-radius: 14px;
+            }
+        }
+
+        /* Smooth transitions for all interactive elements */
+        * {
+            transition: backdrop-filter 0.3s ease;
         }
     </style>
 </head>
 <body>
-    <h1>🎙️ Real-time Transcription (Header Fix)</h1>
-    
-    <div>
-        <button id="startBtn">Start Recording</button>
-        <button id="stopBtn" disabled>Stop Recording</button>
-        <div id="micStatus">Ready to start</div>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to OPENCHS Live Call Transcription Module</h1>
+            <div class="subtitle">Real-time Audio Processing & Speech Recognition</div>
+        </div>
+
+        <div class="controls-section">
+            <div class="controls">
+                <button id="startBtn">
+                    <span class="btn-text">Start Recording</span>
+                </button>
+                <button id="stopBtn" disabled>
+                    <span class="btn-text">Stop Recording</span>
+                </button>
+                <div id="micStatus">Ready to start</div>
+            </div>
+            
+            <div id="status">
+                <span class="status-icon">🔧</span>
+                Ready to test with proper headers
+            </div>
+        </div>
+
+        <div class="transcription-container">
+            <div class="transcription-header">
+                📝 Live Transcription Feed
+            </div>
+            <div id="transcription">
+                <div class="empty-state">
+                    <div class="icon">🎤</div>
+                    <p>Start recording to see transcriptions appear here...</p>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div id="status">Ready to test with proper headers</div>
-    <div id="transcription"></div>
 
     <script>
         let mediaRecorder;
@@ -45,43 +519,66 @@
         let isRecording = false;
         let stream;
         let segmentCount = 0;
-
+        
         // Use the ngrok URL
         const WEBSOCKET_URL = 'wss://71903747d82b.ngrok-free.app/realtime/transcribe';
-
+        
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const transcriptionDiv = document.getElementById('transcription');
         const statusDiv = document.getElementById('status');
         const micStatusDiv = document.getElementById('micStatus');
-
+        
         startBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
 
+        function updateStatus(message, icon = '📡', showSpinner = false) {
+            const spinnerHtml = showSpinner ? '<span class="spinner"></span>' : '';
+            statusDiv.innerHTML = `${spinnerHtml}<span class="status-icon">${icon}</span>${message}`;
+        }
+
+        function updateMicStatus(message, isRecording = false) {
+            const indicator = isRecording ? '<span class="recording-indicator"></span>' : '';
+            micStatusDiv.innerHTML = `${indicator}${message}`;
+            if (isRecording) {
+                micStatusDiv.classList.add('pulse');
+            } else {
+                micStatusDiv.classList.remove('pulse');
+            }
+        }
+
+        function clearEmptyState() {
+            const emptyState = transcriptionDiv.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+        }
+
         async function startRecording() {
             try {
-                statusDiv.innerHTML = "🔗 Connecting to WebSocket...";
+                updateStatus("Connecting to WebSocket...", "🔗", true);
+                updateMicStatus("Connecting...");
                 
                 // Connect WebSocket
                 websocket = new WebSocket(WEBSOCKET_URL);
                 
                 websocket.onopen = function() {
-                    statusDiv.innerHTML = "✅ WebSocket connected! Starting recording...";
+                    updateStatus("WebSocket connected! Starting recording...", "✅");
                     startPeriodicRecording();
                 };
                 
                 setupWebSocketHandlers();
-
+                
                 // Get microphone once
                 console.log('Requesting microphone access...');
-                stream = await navigator.mediaDevices.getUserMedia({ 
+                stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 16000,
                         channelCount: 1,
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true
-                    } 
+                    }
                 });
                 
                 console.log('Microphone access granted');
@@ -90,8 +587,12 @@
                 stopBtn.disabled = false;
                 isRecording = true;
                 
+                // Update button text
+                startBtn.querySelector('.btn-text').innerHTML = '<span class="spinner"></span>Recording...';
+                
             } catch (error) {
-                statusDiv.innerHTML = '❌ Error: ' + error.message;
+                updateStatus('Error: ' + error.message, "❌");
+                updateMicStatus("Error occurred");
                 console.error('Recording error:', error);
             }
         }
@@ -106,7 +607,7 @@
             mediaRecorder = new MediaRecorder(stream, {
                 mimeType: 'audio/webm;codecs=opus'  // Use opus for better compatibility
             });
-
+            
             mediaRecorder.ondataavailable = function(event) {
                 if (event.data.size > 0) {
                     console.log(`Segment #${segmentCount} complete: ${event.data.size} bytes`);
@@ -126,7 +627,7 @@
                     reader.readAsDataURL(event.data);
                 }
             };
-
+            
             mediaRecorder.onstop = function() {
                 console.log(`Segment #${segmentCount} stopped`);
                 
@@ -137,7 +638,7 @@
                     }, 100); // 100ms gap between segments
                 }
             };
-
+            
             // Record for 4 seconds, then stop (this triggers onstop)
             mediaRecorder.start();
             setTimeout(() => {
@@ -146,7 +647,8 @@
                 }
             }, 4000);
             
-            statusDiv.innerHTML = `🎙️ Recording segment #${segmentCount}... Speak clearly!`;
+            updateStatus(`Recording segment #${segmentCount}... Speak clearly!`, "🎙", true);
+            updateMicStatus(`Recording segment #${segmentCount}`, true);
         }
 
         function setupWebSocketHandlers() {
@@ -155,28 +657,32 @@
                 console.log('Received:', data);
                 
                 if (data.type === 'transcription') {
+                    clearEmptyState();
+                    
                     const item = document.createElement('div');
                     item.className = 'transcription-item';
-                    item.innerHTML = `<strong>[Segment #${data.segment_number}]</strong> ${data.text}`;
+                    item.innerHTML = `<strong>Segment #${data.segment_number}</strong>${data.text}`;
                     transcriptionDiv.appendChild(item);
                     transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
                     
-                    statusDiv.innerHTML = `✅ Segment #${data.segment_number} transcribed!`;
+                    updateStatus(`Segment #${data.segment_number} transcribed!`, "✅");
                 } else if (data.type === 'status') {
-                    statusDiv.innerHTML = "📡 " + data.message;
+                    updateStatus(data.message, "📡");
                 } else if (data.type === 'error') {
-                    statusDiv.innerHTML = '❌ Error: ' + data.message;
+                    updateStatus('Error: ' + data.message, "❌");
                     console.error('WebSocket error:', data.message);
                 }
             };
-
+            
             websocket.onerror = function(error) {
-                statusDiv.innerHTML = '❌ WebSocket error: ' + error;
+                updateStatus('WebSocket error: ' + error, "❌");
+                updateMicStatus("Connection error");
                 console.error('WebSocket error:', error);
             };
-
+            
             websocket.onclose = function() {
-                statusDiv.innerHTML = '🔌 WebSocket connection closed';
+                updateStatus('WebSocket connection closed', "🔌");
+                updateMicStatus("Disconnected");
                 console.log('WebSocket closed');
             };
         }
@@ -198,7 +704,10 @@
             
             startBtn.disabled = false;
             stopBtn.disabled = true;
-            statusDiv.innerHTML = "⏹️ Recording stopped.";
+            startBtn.querySelector('.btn-text').textContent = 'Start Recording';
+            
+            updateStatus("Recording stopped.", "⏹");
+            updateMicStatus("Ready to start");
             segmentCount = 0;
         }
     </script>
