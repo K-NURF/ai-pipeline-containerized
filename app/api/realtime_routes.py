@@ -31,7 +31,7 @@ def init_realtime_model():
         return True
     except Exception as e:
         logger.error(f"❌ Failed to load real-time model: {e}")
-        model = "dummy"
+        model = None  # Set to None instead of "dummy" string
         return False
 
 @router.get("/status")
@@ -40,7 +40,7 @@ async def realtime_status():
     init_realtime_model()
     return {
         "model_loaded": model is not None,
-        "model_type": "whisper" if model != "dummy" else "dummy",
+        "model_type": "whisper" if model is not None else "none",
         "status": "ready" if model else "error"
     }
 

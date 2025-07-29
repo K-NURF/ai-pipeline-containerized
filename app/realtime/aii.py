@@ -9,10 +9,15 @@ def load_model():
     """Load Whisper model"""
     try:
         import whisper
+        print("🔄 Loading Whisper large-v3-turbo model...")
         model = whisper.load_model("large-v3-turbo")
-        print("✅ Loaded Whisper openai/whisper-large-v3 model")
+        print("✅ Loaded Whisper large-v3-turbo model successfully")
         return model, None, {}, {}
-    except ImportError:
+    except ImportError as e:
+        print(f"❌ Whisper import error: {e}")
+        return None, None, {}, {}
+    except Exception as e:
+        print(f"❌ Whisper model loading error: {e}")
         return None, None, {}, {}
 
 def transcribe(model, tokenizer, transcribe_options, decode_options, audio_bytes, mime_type="audio/webm"):
@@ -46,7 +51,7 @@ def transcribe(model, tokenizer, transcribe_options, decode_options, audio_bytes
             # Use simplified Whisper parameters (no patience without beam_size)
             result = model.transcribe(
                 tmp_path,
-                language="en",
+                language="sw",  # Changed to Swahili
                 temperature=0.0,
                 no_speech_threshold=0.6,
                 logprob_threshold=-1.0,
