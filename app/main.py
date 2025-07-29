@@ -10,6 +10,7 @@ from .config.settings import settings
 from .api import health_routes, queue_routes, ner_routes, translator_routes, summarizer_routes, classifier_route, whisper_routes, audio_routes, realtime_routes
 from .models.model_loader import model_loader
 from .core.resource_manager import resource_manager
+from .realtime.asterisk_server import start_asterisk_server
 
 # Only import Celery if we're not the main API server
 if settings.enable_model_loading:
@@ -30,6 +31,22 @@ async def lifespan(app: FastAPI):
     
     # Initialize paths
     settings.initialize_paths()
+    
+    # Start Asterisk raw socket server (always start, independent of model loading)
+    logger.info("🎙️ Starting Asterisk raw socket server...")
+    try:
+        import threading
+        from .realtime.asterisk_server import start_asterisk_server
+        
+        asterisk_thread = threading.Thread(
+            target=start_asterisk_server, 
+            args=("0.0.0.0", 8300),
+            daemon=True
+        )
+        asterisk_thread.start()
+        logger.info("✅ Asterisk raw socket server started on port 8300")
+    except Exception as e:
+        logger.error(f"❌ Failed to start Asterisk server: {e}")
     
     # API server doesn't need Celery monitoring or model loading
     if settings.enable_model_loading:
