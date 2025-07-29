@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Transcription - Header Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        #transcription { 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            margin: 10px 0; 
+            height: 300px; 
+            overflow-y: scroll; 
+            background: #f9f9f9;
+        }
+        #status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            background: #e7f3ff;
+        }
+        .transcription-item {
+            margin: 5px 0;
+            padding: 5px;
+            background: white;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎙️ Real-time Transcription (Header Fix)</h1>
+    
+    <div>
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <div id="micStatus">Ready to start</div>
+    </div>
+    
+    <div id="status">Ready to test with proper headers</div>
+    <div id="transcription"></div>
+
+    <script>
+        let mediaRecorder;
+        let websocket;
+        let isRecording = false;
+        let stream;
+        let segmentCount = 0;
+
+        // Use the ngrok URL
+        const WEBSOCKET_URL = 'wss://137e7901d91b.ngrok-free.app/realtime/transcribe';
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const transcriptionDiv = document.getElementById('transcription');
+        const statusDiv = document.getElementById('status');
+        const micStatusDiv = document.getElementById('micStatus');
+
+        startBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+
+        async function startRecording() {
+            try {
+                statusDiv.innerHTML = "🔗 Connecting to WebSocket...";
+                
+                // Connect WebSocket
+                websocket = new WebSocket(WEBSOCKET_URL);
+                
+                websocket.onopen = function() {
+                    statusDiv.innerHTML = "✅ WebSocket connected! Starting recording...";
+                    startPeriodicRecording();
+                };
+                
+                setupWebSocketHandlers();
+
+                // Get microphone once
+                console.log('Requesting microphone access...');
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
+                
+                console.log('Microphone access granted');
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                isRecording = true;
+                
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Error: ' + error.message;
+                console.error('Recording error:', error);
+            }
+        }
+
+        function startPeriodicRecording() {
+            if (!isRecording || !stream) return;
+            
+            segmentCount++;
+            console.log(`Starting recording segment #${segmentCount}`);
+            
+            // Create NEW MediaRecorder for each segment (fresh headers!)
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm;codecs=opus'  // Use opus for better compatibility
+            });
+
+            mediaRecorder.ondataavailable = function(event) {
+                if (event.data.size > 0) {
+                    console.log(`Segment #${segmentCount} complete: ${event.data.size} bytes`);
+                    
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const base64Audio = reader.result.split(',')[1];
+                        if (websocket.readyState === WebSocket.OPEN) {
+                            websocket.send(JSON.stringify({
+                                type: 'audio_segment',
+                                audio: base64Audio,
+                                segment_number: segmentCount,
+                                mime_type: 'audio/webm;codecs=opus'
+                            }));
+                        }
+                    };
+                    reader.readAsDataURL(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = function() {
+                console.log(`Segment #${segmentCount} stopped`);
+                
+                // Start next segment after a brief pause
+                if (isRecording) {
+                    setTimeout(() => {
+                        startPeriodicRecording();
+                    }, 100); // 100ms gap between segments
+                }
+            };
+
+            // Record for 4 seconds, then stop (this triggers onstop)
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, 4000);
+            
+            statusDiv.innerHTML = `🎙️ Recording segment #${segmentCount}... Speak clearly!`;
+        }
+
+        function setupWebSocketHandlers() {
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                console.log('Received:', data);
+                
+                if (data.type === 'transcription') {
+                    const item = document.createElement('div');
+                    item.className = 'transcription-item';
+                    item.innerHTML = `<strong>[Segment #${data.segment_number}]</strong> ${data.text}`;
+                    transcriptionDiv.appendChild(item);
+                    transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+                    
+                    statusDiv.innerHTML = `✅ Segment #${data.segment_number} transcribed!`;
+                } else if (data.type === 'status') {
+                    statusDiv.innerHTML = "📡 " + data.message;
+                } else if (data.type === 'error') {
+                    statusDiv.innerHTML = '❌ Error: ' + data.message;
+                    console.error('WebSocket error:', data.message);
+                }
+            };
+
+            websocket.onerror = function(error) {
+                statusDiv.innerHTML = '❌ WebSocket error: ' + error;
+                console.error('WebSocket error:', error);
+            };
+
+            websocket.onclose = function() {
+                statusDiv.innerHTML = '🔌 WebSocket connection closed';
+                console.log('WebSocket closed');
+            };
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.close();
+            }
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusDiv.innerHTML = "⏹️ Recording stopped.";
+            segmentCount = 0;
+        }
+    </script>
+</body>
+</html>

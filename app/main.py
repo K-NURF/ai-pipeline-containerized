@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from .config.settings import settings
-from .api import health_routes, queue_routes, ner_routes, translator_routes, summarizer_routes, classifier_route, whisper_routes, audio_routes
+from .api import health_routes, queue_routes, ner_routes, translator_routes, summarizer_routes, classifier_route, whisper_routes, audio_routes, realtime_routes
 from .models.model_loader import model_loader
 from .core.resource_manager import resource_manager
 
@@ -82,6 +82,7 @@ app.include_router(summarizer_routes.router)
 app.include_router(classifier_route.router)
 app.include_router(whisper_routes.router)
 app.include_router(audio_routes.router)
+app.include_router(realtime_routes.router)
 
 @app.get("/")
 async def root():
@@ -144,7 +145,7 @@ async def app_info():
 
 if __name__ == "__main__":
     # Use different ports for API vs Worker
-    port = 8123 if not settings.enable_model_loading else 8123
+    port = 8124 if not settings.enable_model_loading else 8124
     
     uvicorn.run(
         "app.main:app",
