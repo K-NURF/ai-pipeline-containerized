@@ -497,9 +497,24 @@ def _process_audio_sync_worker(
                                 "input_source": "translated_text",
                                 "input_length": len(translation)
                             }
-                            asyncio.create_task(
-                                agent_notification_service.send_qa_update(call_id, qa_score, processing_info)
-                            )
+                            # Run async notification in event loop for Celery worker
+                            try:
+                                loop = asyncio.get_event_loop()
+                                if loop.is_running():
+                                    # Event loop is running, create task
+                                    asyncio.create_task(
+                                        agent_notification_service.send_qa_update(call_id, qa_score, processing_info)
+                                    )
+                                else:
+                                    # No running loop, run directly
+                                    loop.run_until_complete(
+                                        agent_notification_service.send_qa_update(call_id, qa_score, processing_info)
+                                    )
+                            except RuntimeError:
+                                # No event loop exists, create one
+                                asyncio.run(
+                                    agent_notification_service.send_qa_update(call_id, qa_score, processing_info)
+                                )
                             logger.info(f"📤 Sent QA update notification for call {call_id} after translation")
                             publish_update("qa_complete", 55, "QA analysis completed and sent to agent")
                         except Exception as notify_error:
