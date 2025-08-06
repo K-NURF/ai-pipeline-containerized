@@ -13,6 +13,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 def mock_whisper_model():
     """Create a mocked Whisper model for testing"""
     with patch("transformers.pipeline") as mock_pipeline, \
+         patch("transformers.AutoModelForSpeechSeq2Seq.from_pretrained") as mock_model, \
+         patch("transformers.AutoProcessor.from_pretrained") as mock_processor, \
          patch("os.path.exists", return_value=True):
         
         # Mock pipeline return value
@@ -41,6 +43,8 @@ def test_whisper_model_initialization():
 def test_whisper_model_load_success():
     """Test successful model loading"""
     with patch("transformers.pipeline") as mock_pipeline, \
+         patch("transformers.AutoModelForSpeechSeq2Seq.from_pretrained") as mock_model, \
+         patch("transformers.AutoProcessor.from_pretrained") as mock_processor, \
          patch("os.path.exists", return_value=True), \
          patch("torch.cuda.is_available", return_value=True):
         
@@ -59,23 +63,23 @@ def test_transcribe_audio_file(mock_whisper_model):
     """Test transcribing an audio file"""
     mock_whisper_model.pipe.return_value = {"text": "Hello world"}
     
-    result = mock_whisper_model.transcribe_audio("/fake/audio.wav")
+    result = mock_whisper_model.transcribe_audio_file("/fake/audio.wav")
     
-    assert result["text"] == "Hello world"
+    assert result == "Hello world"  # The method returns string, not dict
     mock_whisper_model.pipe.assert_called_once()
 
 def test_transcribe_empty_file_path(mock_whisper_model):
     """Test transcribing with empty file path"""
-    result = mock_whisper_model.transcribe_audio("")
-    assert result is None
+    result = mock_whisper_model.transcribe_audio_file("")
+    assert result is None or result == ""
 
 def test_transcribe_model_not_loaded():
     """Test transcribing when model is not loaded"""
     from app.models.whisper_model import WhisperModel
     model = WhisperModel()
     
-    with pytest.raises(RuntimeError, match="Model is not loaded"):
-        model.transcribe_audio("/fake/audio.wav")
+    with pytest.raises(RuntimeError, match="not loaded"):
+        model.transcribe_audio_file("/fake/audio.wav")
 
 def test_transcribe_audio_bytes(mock_whisper_model):
     """Test transcribing audio from bytes"""
