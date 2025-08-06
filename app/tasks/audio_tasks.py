@@ -473,6 +473,42 @@ def _process_audio_sync_worker(
                 "status": "completed",
                 "output_length": len(translation)
             }
+            
+            # Run QA analysis immediately after translation since translation is the input for QA
+            if translation and translation.strip():
+                try:
+                    publish_update("qa_analysis", 52, "Running QA analysis on translation...")
+                    qa_start = datetime.now()
+                    
+                    qa_score_model = models.models.get("all_qa_distilbert_v1")
+                    if qa_score_model:
+                        qa_score = qa_score_model.predict(translation, threshold=threshold, return_raw=return_raw)
+                        qa_duration = (datetime.now() - qa_start).total_seconds()
+                        
+                        # Send QA update notification to agent immediately
+                        try:
+                            from ..services.agent_notification_service import agent_notification_service
+                            # Extract call_id from filename or use task_id as fallback
+                            call_id = filename.replace('.wav', '').replace('.mp3', '') if filename else task_id
+                            processing_info = {
+                                "duration": qa_duration,
+                                "model_used": "all_qa_distilbert_v1",
+                                "threshold": threshold,
+                                "input_source": "translated_text",
+                                "input_length": len(translation)
+                            }
+                            asyncio.create_task(
+                                agent_notification_service.send_qa_update(call_id, qa_score, processing_info)
+                            )
+                            logger.info(f"📤 Sent QA update notification for call {call_id} after translation")
+                            publish_update("qa_complete", 55, "QA analysis completed and sent to agent")
+                        except Exception as notify_error:
+                            logger.error(f"❌ Failed to send QA notification for call {call_id}: {notify_error}")
+                    else:
+                        logger.warning("QA model not available for immediate analysis")
+                except Exception as qa_error:
+                    logger.error(f"❌ QA analysis failed after translation: {qa_error}")
+                    
         except Exception as e:
             translation_duration = (datetime.now() - step_start).total_seconds()
             publish_update("translation_error", 35, f"Translation failed: {str(e)}")
