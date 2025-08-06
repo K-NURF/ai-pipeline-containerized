@@ -22,6 +22,7 @@ class UpdateType(Enum):
     CALL_END = "call_end"
     CALL_SUMMARY = "call_summary"
     CALL_INSIGHTS = "call_insights"
+    GPT_INSIGHTS = "gpt_insights"
     ERROR = "error"
 
 class AgentNotificationService:
@@ -343,6 +344,18 @@ class AgentNotificationService:
         }
         
         return await self._send_notification(call_id, UpdateType.CALL_SUMMARY, payload)
+    
+    async def send_gpt_insights(self, call_id: str, insights: Dict[str, Any]) -> bool:
+        """Send GPT-generated case insights to agent"""
+        payload = {
+            "update_type": "gpt_insights",
+            "call_id": call_id,
+            "timestamp": datetime.now().isoformat(),
+            "insights": insights,
+            "processing_complete": True
+        }
+        
+        return await self._send_notification(call_id, UpdateType.GPT_INSIGHTS, payload)
     
     async def send_error_notification(self, call_id: str, error_type: str, 
                                     error_message: str, error_context: Dict[str, Any] = None) -> bool:
