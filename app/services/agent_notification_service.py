@@ -20,6 +20,7 @@ class UpdateType(Enum):
     CLASSIFICATION_UPDATE = "classification_update"
     CALL_END = "call_end"
     CALL_SUMMARY = "call_summary"
+    CALL_INSIGHTS = "call_insights"
     ERROR = "error"
 
 class AgentNotificationService:
@@ -33,7 +34,7 @@ class AgentNotificationService:
         self.asterisk_server_ip = settings.asterisk_server_ip
         self.endpoint_url = f"https://{self.asterisk_server_ip}/helpline/api/msg/"
         self.auth_endpoint_url = f"https://{self.asterisk_server_ip}/helpline/api/"
-        self.basic_auth = "dGVzdDpwQHNzdzByZA=="  # Base64: test:p@ssw0rd
+        self.basic_auth = "dGVzdDowMDI5MjI0MA=="  # Base64: test:p@ssw0rd
         
         # Dynamic token management
         self.bearer_token: Optional[str] = None

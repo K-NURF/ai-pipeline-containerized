@@ -248,8 +248,16 @@ class CallSessionManager:
                 logger.error(f"❌ Failed to finalize progressive analysis for call {call_id}: {e}")
             
             # Trigger AI pipeline processing if transcript is substantial
+            ai_task = None
             if len(session.cumulative_transcript.strip()) > 50:  # Minimum threshold
-                await self._trigger_ai_pipeline(session)
+                ai_task = await self._trigger_ai_pipeline(session)
+            
+            # Wait for AI pipeline completion and send summary/insights
+            if ai_task and AGENT_NOTIFICATIONS_ENABLED:
+                try:
+                    await self._wait_and_send_ai_results(call_id, ai_task)
+                except Exception as e:
+                    logger.error(f"❌ Failed to send AI results for {call_id}: {e}")
             
             # Send call end notification to agent
             if AGENT_NOTIFICATIONS_ENABLED:
@@ -288,10 +296,16 @@ class CallSessionManager:
             # Create synthetic audio filename for the complete call
             filename = f"call_{session.call_id}_{session.start_time.strftime('%Y%m%d_%H%M%S')}.transcript"
             
-            # Convert transcript to bytes (simulate audio processing)
-            transcript_bytes = session.cumulative_transcript.encode('utf-8')
+            # Since we already have the transcript, pass it directly as text
+            # Use a special marker to indicate this is pre-transcribed text
+            transcript_data = {
+                'transcript': session.cumulative_transcript,
+                'is_pretranscribed': True,
+                'language': 'sw'
+            }
+            transcript_bytes = json.dumps(transcript_data).encode('utf-8')
             
-            # Submit to full AI pipeline
+            # Submit to full AI pipeline with pre-transcribed flag
             task = process_audio_task.delay(
                 audio_bytes=transcript_bytes,
                 filename=filename,
@@ -316,9 +330,330 @@ class CallSessionManager:
                 )
             
             logger.info(f"🤖 [session] Triggered AI pipeline for call {session.call_id}, task: {task.id}")
+            return task
             
         except Exception as e:
             logger.error(f"❌ Failed to trigger AI pipeline for session {session.call_id}: {e}")
+            return None
+    
+    async def _wait_and_send_ai_results(self, call_id: str, ai_task):
+        """Wait for AI pipeline completion and send summary/insights to agent"""
+        try:
+            import asyncio
+            from celery.result import AsyncResult
+            
+            logger.info(f"📊 [session] Waiting for AI pipeline completion for call {call_id}, task: {ai_task.id}")
+            
+            # Wait for task completion with timeout
+            timeout_seconds = 300  # 5 minutes timeout
+            start_time = datetime.now()
+            
+            while (datetime.now() - start_time).total_seconds() < timeout_seconds:
+                # Check task status
+                result = AsyncResult(ai_task.id)
+                
+                if result.ready():
+                    if result.successful():
+                        # Task completed successfully
+                        ai_result = result.result
+                        logger.info(f"✅ [session] AI pipeline completed for call {call_id}")
+                        
+                        # Extract results from the task output
+                        if isinstance(ai_result, dict) and 'result' in ai_result:
+                            pipeline_result = ai_result['result']
+                            summary = pipeline_result.get('summary', '')
+                            insights = pipeline_result.get('insights', {})
+                            
+                            # Send call summary notification (with QA summary only)
+                            if summary and len(summary.strip()) > 10:
+                                try:
+                                    # Extract QA scores for summary reference
+                                    qa_scores = pipeline_result.get('qa_scores', {})
+                                    overall_qa_score = self._extract_overall_qa_score(qa_scores)
+                                    
+                                    # Create final analysis data with QA summary reference
+                                    final_analysis = {
+                                        'transcript_length': len(pipeline_result.get('transcript', '')),
+                                        'translation_available': bool(pipeline_result.get('translation')),
+                                        'translation_input_for_qa': bool(pipeline_result.get('translation')),  # Clarify QA input
+                                        'entities_found': len(pipeline_result.get('entities', {})),
+                                        'classification': pipeline_result.get('classification', {}),
+                                        'processing_time': pipeline_result.get('pipeline_info', {}).get('total_time', 0),
+                                        'qa_summary': {
+                                            'overall_score': overall_qa_score,
+                                            'performance_grade': self._get_performance_grade(overall_qa_score),
+                                            'note': 'Detailed QA analysis available in insights notification'
+                                        }
+                                    }
+                                    
+                                    await agent_notification_service.send_call_summary(call_id, summary, final_analysis)
+                                    logger.info(f"📋 [session] Sent call summary with QA summary for {call_id}")
+                                except Exception as e:
+                                    logger.error(f"❌ Failed to send call summary for {call_id}: {e}")
+                            
+                            # Send insights notification with full QA analysis
+                            if insights and isinstance(insights, dict):
+                                try:
+                                    # Add comprehensive QA analysis to insights
+                                    qa_scores = pipeline_result.get('qa_scores', {})
+                                    if qa_scores:
+                                        insights['qa_analysis'] = {
+                                            'input_source': 'translated_text' if pipeline_result.get('translation') else 'original_transcript',
+                                            'overall_score': self._extract_overall_qa_score(qa_scores),
+                                            'detailed_scores': qa_scores,
+                                            'performance_summary': self._summarize_qa_performance(qa_scores),
+                                            'coaching_recommendations': self._generate_coaching_recommendations(qa_scores)
+                                        }
+                                    
+                                    await self._send_insights_notification(call_id, insights)
+                                    logger.info(f"💡 [session] Sent insights with full QA analysis for {call_id}")
+                                except Exception as e:
+                                    logger.error(f"❌ Failed to send insights for {call_id}: {e}")
+                            
+                        break
+                    else:
+                        # Task failed
+                        logger.error(f"❌ [session] AI pipeline failed for call {call_id}: {result.info}")
+                        break
+                
+                # Wait before checking again
+                await asyncio.sleep(2)
+            else:
+                # Timeout occurred
+                logger.warning(f"⏰ [session] AI pipeline timeout for call {call_id} after {timeout_seconds}s")
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to wait for AI results for {call_id}: {e}")
+    
+    async def _send_insights_notification(self, call_id: str, insights: dict):
+        """Send insights as a structured notification to agent system"""
+        try:
+            # Create insights payload similar to other notifications
+            payload = {
+                "update_type": "call_insights",
+                "call_id": call_id,
+                "timestamp": datetime.now().isoformat(),
+                "insights": insights,
+                "insight_summary": {
+                    "case_complexity": insights.get("case_overview", {}).get("case_complexity", "unknown"),
+                    "risk_level": insights.get("risk_assessment", {}).get("risk_level", "unknown"),
+                    "key_entities": insights.get("case_overview", {}).get("key_entities", {}),
+                    "recommendations": insights.get("recommendations", {})
+                },
+                "processing_complete": True
+            }
+            
+            # Use existing notification infrastructure
+            from ..services.agent_notification_service import UpdateType
+            return await agent_notification_service._send_notification(call_id, UpdateType.CALL_INSIGHTS, payload)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to send insights notification for {call_id}: {e}")
+            return False
+    
+    def _extract_overall_qa_score(self, qa_scores: dict) -> float:
+        """Extract overall QA score from detailed results"""
+        try:
+            if not qa_scores or not isinstance(qa_scores, dict):
+                return 0.0
+            
+            # Check if there's an overall_qa_score field (from score_transcript method)
+            if 'overall_qa_score' in qa_scores:
+                return float(qa_scores['overall_qa_score'])
+            
+            # Calculate from detailed scores if available
+            if 'detailed_scores' in qa_scores:
+                detailed = qa_scores['detailed_scores']
+                scores = []
+                for category, data in detailed.items():
+                    if isinstance(data, dict) and 'score_percent' in data:
+                        scores.append(data['score_percent'])
+                
+                return sum(scores) / len(scores) if scores else 0.0
+            
+            # Fallback: calculate from head results (from predict method)
+            total_probs = []
+            for head_name, submetrics in qa_scores.items():
+                if isinstance(submetrics, list):
+                    for submetric in submetrics:
+                        if isinstance(submetric, dict) and 'probability' in submetric:
+                            total_probs.append(submetric['probability'])
+            
+            return (sum(total_probs) / len(total_probs) * 100) if total_probs else 0.0
+            
+        except Exception as e:
+            logger.error(f"Failed to extract overall QA score: {e}")
+            return 0.0
+    
+    def _summarize_qa_performance(self, qa_scores: dict) -> dict:
+        """Create a summary of QA performance by category"""
+        try:
+            summary = {
+                'strengths': [],
+                'areas_for_improvement': [],
+                'category_scores': {},
+                'metrics_passed': 0,
+                'total_metrics': 0
+            }
+            
+            if not qa_scores or not isinstance(qa_scores, dict):
+                return summary
+            
+            # Handle detailed_scores format (from score_transcript method)
+            if 'detailed_scores' in qa_scores:
+                detailed = qa_scores['detailed_scores']
+                for category, data in detailed.items():
+                    if isinstance(data, dict):
+                        score = data.get('score_percent', 0)
+                        summary['category_scores'][category] = score
+                        
+                        if score >= 80:
+                            summary['strengths'].append(category)
+                        elif score < 60:
+                            summary['areas_for_improvement'].append(category)
+                        
+                        # Count metrics
+                        submetrics = data.get('submetrics', [])
+                        for submetric in submetrics:
+                            summary['total_metrics'] += 1
+                            if submetric.get('passed', False):
+                                summary['metrics_passed'] += 1
+            
+            # Handle head results format (from predict method)
+            else:
+                for head_name, submetrics in qa_scores.items():
+                    if isinstance(submetrics, list):
+                        passed_count = 0
+                        total_count = len(submetrics)
+                        
+                        for submetric in submetrics:
+                            if isinstance(submetric, dict):
+                                summary['total_metrics'] += 1
+                                if submetric.get('prediction', False):
+                                    passed_count += 1
+                                    summary['metrics_passed'] += 1
+                        
+                        # Calculate category score
+                        category_score = (passed_count / total_count * 100) if total_count > 0 else 0
+                        summary['category_scores'][head_name] = category_score
+                        
+                        if category_score >= 80:
+                            summary['strengths'].append(head_name)
+                        elif category_score < 60:
+                            summary['areas_for_improvement'].append(head_name)
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Failed to summarize QA performance: {e}")
+            return {
+                'strengths': [],
+                'areas_for_improvement': [],
+                'category_scores': {},
+                'metrics_passed': 0,
+                'total_metrics': 0
+            }
+    
+    def _get_performance_grade(self, overall_score: float) -> str:
+        """Convert overall QA score to performance grade"""
+        if overall_score >= 90:
+            return 'A+'
+        elif overall_score >= 85:
+            return 'A'
+        elif overall_score >= 80:
+            return 'B+'
+        elif overall_score >= 75:
+            return 'B'
+        elif overall_score >= 70:
+            return 'C+'
+        elif overall_score >= 65:
+            return 'C'
+        elif overall_score >= 60:
+            return 'D'
+        else:
+            return 'F'
+    
+    def _generate_coaching_recommendations(self, qa_scores: dict) -> list:
+        """Generate actionable coaching recommendations based on QA scores"""
+        recommendations = []
+        
+        try:
+            performance_summary = self._summarize_qa_performance(qa_scores)
+            category_scores = performance_summary.get('category_scores', {})
+            areas_for_improvement = performance_summary.get('areas_for_improvement', [])
+            
+            # Generate specific recommendations based on weak areas
+            for category in areas_for_improvement:
+                score = category_scores.get(category, 0)
+                
+                if category == 'opening':
+                    recommendations.append({
+                        'area': 'Call Opening',
+                        'current_score': score,
+                        'recommendation': 'Use proper greeting and introduction at start of call',
+                        'priority': 'high'
+                    })
+                
+                elif category == 'listening':
+                    recommendations.append({
+                        'area': 'Active Listening',
+                        'current_score': score,
+                        'recommendation': 'Focus on not interrupting, showing empathy, and paraphrasing caller concerns',
+                        'priority': 'high'
+                    })
+                
+                elif category == 'proactiveness':
+                    recommendations.append({
+                        'area': 'Proactive Service',
+                        'current_score': score,
+                        'recommendation': 'Take initiative to solve additional issues and confirm caller satisfaction',
+                        'priority': 'medium'
+                    })
+                
+                elif category == 'resolution':
+                    recommendations.append({
+                        'area': 'Problem Resolution',
+                        'current_score': score,
+                        'recommendation': 'Ensure accurate information, proper steps, and clear explanations',
+                        'priority': 'high'
+                    })
+                
+                elif category == 'hold':
+                    recommendations.append({
+                        'area': 'Hold Etiquette',
+                        'current_score': score,
+                        'recommendation': 'Always explain before placing on hold and thank caller for waiting',
+                        'priority': 'medium'
+                    })
+                
+                elif category == 'closing':
+                    recommendations.append({
+                        'area': 'Call Closing',
+                        'current_score': score,
+                        'recommendation': 'Use proper closing phrases and ensure caller satisfaction before ending',
+                        'priority': 'high'
+                    })
+            
+            # Add positive reinforcement for strong areas
+            strengths = performance_summary.get('strengths', [])
+            if strengths:
+                recommendations.append({
+                    'area': 'Strengths to Maintain',
+                    'current_score': max([category_scores.get(s, 0) for s in strengths] or [0]),
+                    'recommendation': f'Continue excellent performance in: {", ".join(strengths)}',
+                    'priority': 'maintain'
+                })
+            
+        except Exception as e:
+            logger.error(f"Failed to generate coaching recommendations: {e}")
+            recommendations.append({
+                'area': 'General',
+                'current_score': 0,
+                'recommendation': 'Review call recording for improvement opportunities',
+                'priority': 'medium'
+            })
+        
+        return recommendations
     
     async def get_all_active_sessions(self) -> List[CallSession]:
         """Get all active sessions"""
