@@ -81,7 +81,10 @@ nvidia-cusparselt-cu12==0.6.3
 nvidia-nccl-cu12==2.26.2
 nvidia-nvjitlink-cu12==12.6.85
 nvidia-nvtx-cu12==12.6.77
-openai-whisper==20250625
+faster-whisper>=1.2.0
+ctranslate2==4.4.0
+numpy==2.2.0
+nvidia-cudnn-cu12==8.9.7.29
 packaging==25.0
 pandas==2.3.1
 parso==0.8.4

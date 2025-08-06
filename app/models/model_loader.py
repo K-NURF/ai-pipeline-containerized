@@ -49,6 +49,14 @@ except ImportError:
     logger.info("SoundFile not available - audio I/O disabled")
 
 try:
+    import faster_whisper
+    AVAILABLE_LIBRARIES['faster_whisper'] = faster_whisper.__version__
+    FASTER_WHISPER_AVAILABLE = True
+except ImportError:
+    FASTER_WHISPER_AVAILABLE = False
+    logger.info("Faster-whisper not available - whisper models disabled")
+
+try:
     import sklearn
     AVAILABLE_LIBRARIES['sklearn'] = sklearn.__version__
     SKLEARN_AVAILABLE = True
@@ -92,8 +100,8 @@ class ModelLoader:
         # Model dependency requirements
         self.model_dependencies = {
             "whisper": {
-                "required": ["torch", "transformers", "librosa", "soundfile", "numpy"],
-                "description": "Speech-to-text transcription"
+                "required": ["torch", "faster_whisper", "librosa", "numpy"],
+                "description": "Speech-to-text transcription (faster-whisper)"
             },
             "ner": {
                 "required": ["spacy", "numpy"],
@@ -140,6 +148,7 @@ class ModelLoader:
             "spacy": SPACY_AVAILABLE,
             "librosa": LIBROSA_AVAILABLE,
             "soundfile": SOUNDFILE_AVAILABLE,
+            "faster_whisper": FASTER_WHISPER_AVAILABLE,
             "sklearn": SKLEARN_AVAILABLE,
             "numpy": NUMPY_AVAILABLE
         }
@@ -178,20 +187,24 @@ class ModelLoader:
                 return
             
             if model_name == "whisper":
-                from .whisper_model import whisper_model
+                # Skip Whisper loading during startup to avoid cuDNN crashes
+                # Model will be loaded lazily when first used
+                logger.info("⏳ Skipping Whisper model loading during startup (lazy loading enabled)")
+                logger.info("💡 Whisper model will be loaded when first used to avoid cuDNN crashes")
                 
-                success = whisper_model.load()
-                if success:
-                    model_status.loaded = True
-                    model_status.error = None
-                    model_status.model_info = whisper_model.get_model_info()
-                    self.models[model_name] = whisper_model
-                    logger.info("✅ Whisper model loaded successfully")
-                else:
-                    model_status.error = whisper_model.error or "Failed to load Whisper model"
-                    logger.error(f"❌ Whisper model failed to load: {model_status.error}")
-                
+                model_status.loaded = False
+                model_status.error = "Lazy loading - will load when first used"
                 model_status.load_time = datetime.now()
+                
+                # Mark as ready for lazy loading
+                model_status.dependencies_available = True
+                model_status.model_info = {
+                    "model_path": os.path.join(self.models_path, model_name),
+                    "lazy_loading": True,
+                    "description": "Faster-Whisper speech recognition (lazy loaded)",
+                    "status": "ready_for_lazy_loading"
+                }
+                
                 return
             
             if model_name == "ner":
@@ -293,6 +306,67 @@ class ModelLoader:
             model_status.error = str(e)
             model_status.load_time = datetime.now()
     
+    def get_model(self, model_name: str):
+        """Get model with lazy loading support"""
+        # Check if model is already loaded
+        if model_name in self.models:
+            return self.models[model_name]
+        
+        # Check if this model can be lazy loaded
+        model_status = self.model_status.get(model_name)
+        if model_status and model_status.dependencies_available:
+            logger.info(f"🔄 Lazy loading {model_name} model...")
+            
+            try:
+                success = False
+                model_instance = None
+                
+                if model_name == "whisper":
+                    from .whisper_model import whisper_model
+                    model_instance = whisper_model
+                elif model_name == "ner":
+                    from .ner_model import ner_model
+                    model_instance = ner_model
+                elif model_name == "classifier_model":
+                    from .classifier_model import classifier_model
+                    model_instance = classifier_model
+                elif model_name == "translator":
+                    from .translator_model import translator_model
+                    model_instance = translator_model
+                elif model_name == "summarizer":
+                    from .summarizer_model import summarization_model
+                    model_instance = summarization_model
+                elif model_name == "all_qa_distilbert_v1":
+                    from .qa_model import qa_model
+                    model_instance = qa_model
+                
+                if model_instance:
+                    success = model_instance.load()
+                    if success:
+                        model_status.loaded = True
+                        model_status.error = None
+                        model_status.model_info = model_instance.get_model_info()
+                        self.models[model_name] = model_instance
+                        logger.info(f"✅ {model_name} model lazy loaded successfully")
+                        return model_instance
+                    else:
+                        error = getattr(model_instance, 'error', None) or f"Failed to lazy load {model_name}"
+                        model_status.error = error
+                        logger.error(f"❌ {model_name} lazy loading failed: {error}")
+                        return None
+                else:
+                    logger.error(f"❌ Unknown model type for lazy loading: {model_name}")
+                    return None
+                        
+            except Exception as e:
+                error = f"Lazy loading crashed: {e}"
+                model_status.error = error
+                logger.error(f"❌ {model_name} lazy loading crashed: {error}")
+                return None
+        
+        # Return None if model not found or not loadable
+        return None
+
     def get_model_status(self) -> Dict[str, Any]:
         """Get status of all models"""
         status = {}

@@ -15,7 +15,7 @@ This system processes audio files through a complete AI pipeline:
 
 ### Key Capabilities
 
-- **🎙️ Speech-to-Text**: Whisper Large V3 Turbo with 99+ language support
+- **🚀 Speech-to-Text**: Faster-Whisper Large V3 Turbo (4-5x faster) with 99+ language support
 - **🌐 Translation**: Fine-tuned Swahili ↔ English translation
 - **🧠 NLP Analysis**: Named Entity Recognition, Classification, Summarization
 - **⚡ Real-time Processing**: GPU-accelerated with intelligent resource management
@@ -54,18 +54,36 @@ This system processes audio files through a complete AI pipeline:
 |-------|------------|---------|
 | **API Framework** | FastAPI 0.116+ | Async REST API with automatic documentation |
 | **Task Queue** | Celery + Redis | Distributed audio processing |
-| **ML Framework** | PyTorch + Transformers | Model inference and GPU management |
-| **Audio Processing** | Librosa + SoundFile | Audio format handling and preprocessing |
+| **ML Framework** | PyTorch + Faster-Whisper + Transformers | Model inference and GPU management |
+| **Audio Processing** | Librosa + SoundFile + CTranslate2 | Audio format handling and optimized inference |
 | **NLP Engine** | spaCy + Custom Models | Entity extraction and text analysis |
 | **Containerization** | Docker + Docker Compose | Production deployment |
 | **Monitoring** | Built-in health checks | Resource monitoring and alerting |
 
 ## 🚀 Quick Start
 
+### 🎯 New to the Project?
+
+**Choose your preferred setup method:**
+
+```bash
+# Option 1: Interactive setup script (recommended for beginners)
+git clone <repository-url>
+cd ai-pipeline-containerized
+chmod +x get-started.sh
+./get-started.sh
+
+# Option 2: Automated Python setup
+python setup.py --quick-start
+
+# Option 3: Docker Compose (production-ready)
+docker-compose up -d
+```
+
 ### Prerequisites
 
 - **Hardware**: GPU recommended (16GB+ VRAM), 32GB+ RAM, 24+ CPU cores
-- **Software**: Docker 20.10+, Docker Compose 2.0+, NVIDIA Container Runtime (for GPU)
+- **Software**: Python 3.11+, Docker 20.10+, Docker Compose 2.0+, NVIDIA Container Runtime (for GPU)
 
 ### 1. Clone and Setup
 
@@ -73,11 +91,12 @@ This system processes audio files through a complete AI pipeline:
 git clone <repository-url>
 cd ai-pipeline-containerized
 
-# Copy environment template
-cp .env.example .env
+# Quick automated setup (recommended)
+python setup.py --quick-start
 
-# Review and adjust configuration
-nano .env
+# OR manual setup
+cp .env.example .env
+nano .env  # Review and adjust configuration
 ```
 
 ### 2. Start with Docker Compose
@@ -558,14 +577,21 @@ CUDA_VISIBLE_DEVICES=0       # GPU selection
 
 ## 📚 Additional Resources
 
-### Documentation
+### Project Documentation
+- **[📖 Installation Guide](INSTALLATION.md)** - Complete setup instructions
+- **[🤖 Model Setup Guide](docs/model-setup-guide.md)** - AI model configuration and faster-whisper setup
+- **[📡 Streaming Guide](STREAMING_GUIDE.md)** - Real-time audio processing
+- **[🚀 Quick Setup Script](setup.py)** - Automated installation tool
+
+### External Documentation
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Celery Documentation](https://docs.celeryproject.org/)
-- [Transformers Documentation](https://huggingface.co/docs/transformers/)
+- [Faster-Whisper Documentation](https://github.com/SYSTRAN/faster-whisper)
+- [CTranslate2 Documentation](https://opennmt.net/CTranslate2/)
 - [MLOps Best Practices](https://ml-ops.org/)
 
 ### Model Information
-- **Whisper Large V3 Turbo**: OpenAI's latest speech recognition model
+- **Faster-Whisper Large V3 Turbo**: CTranslate2-optimized Whisper for 4-5x faster inference
 - **Custom Translation**: Fine-tuned for Swahili-English translation
 - **spaCy NER**: English language model for entity recognition
 - **DistilBERT**: Fine-tuned for case classification

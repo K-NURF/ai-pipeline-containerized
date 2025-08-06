@@ -385,7 +385,7 @@ def _process_audio_sync_worker(
         # Normal audio transcription
         publish_update("transcription", 10, "Starting audio transcription...")
         
-        whisper_model = models.models.get("whisper")
+        whisper_model = models.get_model("whisper")
         if not whisper_model:
             publish_update("transcription_error", 10, "Whisper model not available")
             raise RuntimeError("Whisper model not available in worker")
@@ -436,7 +436,7 @@ def _process_audio_sync_worker(
         
         step_start = datetime.now()
         try:
-            translator_model = models.models.get("translator")
+            translator_model = models.get_model("translator")
             if not translator_model:
                 publish_update("translation_error", 35, "Translator model not available")
                 raise RuntimeError("Translator model not available")
@@ -497,7 +497,7 @@ def _process_audio_sync_worker(
     publish_update("ner", 60, "Extracting named entities...")
     step_start = datetime.now()
     try:
-        ner_model = models.models.get("ner")
+        ner_model = models.get_model("ner")
         if not ner_model:
             publish_update("ner_error", 60, "NER model not available")
             raise RuntimeError("NER model not available")
@@ -536,7 +536,7 @@ def _process_audio_sync_worker(
     
     step_start = datetime.now()
     try:
-        classifier_model = models.models.get("classifier_model")
+        classifier_model = models.get_model("classifier_model")
         if not classifier_model:
             publish_update("classification_error", 70, "Classifier model not available")
             raise RuntimeError("Classifier model not available")
@@ -575,7 +575,7 @@ def _process_audio_sync_worker(
     
     step_start = datetime.now()
     try:
-        summarizer_model = models.models.get("summarizer")
+        summarizer_model = models.get_model("summarizer")
         if not summarizer_model:
             publish_update("summarization_error", 80, "Summarizer model not available")
             raise RuntimeError("Summarizer model not available")
@@ -614,7 +614,7 @@ def _process_audio_sync_worker(
     try:
 
     
-        qa_score_model = models.models.get("all_qa_distilbert_v1")
+        qa_score_model = models.get_model("all_qa_distilbert_v1")
         if not qa_score_model:
             raise RuntimeError("QA model not available")
         # threshold = 0.5  # Default threshold
@@ -870,7 +870,7 @@ def process_streaming_audio_task(
         call_id = connection_id  # connection_id is now actually call_id
         
         # Quick transcription only (no full pipeline for speed)
-        whisper_model = models.models.get("whisper")
+        whisper_model = models.get_model("whisper")
         if whisper_model: 
             # Use the PCM transcription method for raw audio bytes
             transcript = whisper_model.transcribe_pcm_audio(

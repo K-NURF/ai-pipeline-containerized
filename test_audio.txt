@@ -1,0 +1,1 @@
+Testing lazy loading with simple audio processing
