@@ -32,9 +32,9 @@ class AgentNotificationService:
         
         # Configuration
         self.asterisk_server_ip = settings.asterisk_server_ip
-        self.endpoint_url = f"https://{self.asterisk_server_ip}/helpline/api/msg/"
-        self.auth_endpoint_url = f"https://{self.asterisk_server_ip}/helpline/api/"
-        self.basic_auth = "dGVzdDowMDI5MjI0MA=="  # Base64: test:p@ssw0rd
+        self.endpoint_url = f"https://192.168.10.3/hh5aug2025/api/msg/"
+        self.auth_endpoint_url = f"https://192.168.10.3/hh5aug2025/api/"
+        self.basic_auth = "dGVzdDpwQHNzdzByZA=="  # Base64: test:p@ssw0rd
         
         # Dynamic token management
         self.bearer_token: Optional[str] = None
